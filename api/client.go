@@ -59,7 +59,7 @@ func (c *Client) acquireAccessToken() (string, error) {
 
 func (c *Client) doGet(path string, out interface{}) error {
 	url := c.resolveUrl(path)
-	c.logger.Debugf("tesla.electricgopher.api.Client.doGet(): GET %s", url)
+	c.logger.Debugf("electricgopher.api.Client.doGet(): GET %s", url)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
@@ -71,7 +71,7 @@ func (c *Client) doGet(path string, out interface{}) error {
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 	res, err := c.httpClient.Do(req)
 	if err != nil {
-		c.logger.Debugf("tesla.electricgopher.api.Client.doGet(): error making request - %s", err.Error())
+		c.logger.Debugf("electricgopher.api.Client.doGet(): error making request - %s", err.Error())
 		return err
 	}
 	// check for 200
@@ -87,7 +87,7 @@ func (c *Client) doGet(path string, out interface{}) error {
 	if err != nil {
 		return fmt.Errorf("Unable to read response body - %s", err.Error())
 	}
-	c.logger.Debugf("tesla.electricgopher.api.Client.doGet(): HTTP Response Body - %s", makeJsonPretty(resBody))
+	c.logger.Debugf("electricgopher.api.Client.doGet(): HTTP Response Body - %s", makeJsonPretty(resBody))
 	// TODO: inline deserialization and add informative logging
 	mustDeserializeJson(resBody, out)
 	return nil
