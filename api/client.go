@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -74,10 +75,50 @@ func (c *Client) doGet(path string, out interface{}) error {
 		c.logger.Debugf("electricgopher.api.Client.doGet(): error making request - %s", err.Error())
 		return err
 	}
+	defer res.Body.Close()
+
 	// check for 200
 	if res.StatusCode != 200 {
 		return fmt.Errorf("Unable to get resource; HTTP response status %s", res.Status)
 	}
+	// TODO: make this more resilient
+	ct := res.Header["Content-Type"][0]
+	if !strings.Contains(ct, "application/json") {
+		return fmt.Errorf("Unable to parse response; unexpected content type - %s", ct)
+	}
+	resBody, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("Unable to read response body - %s", err.Error())
+	}
+	c.logger.Debugf("electricgopher.api.Client.doGet(): HTTP Response Body - %s", makeJsonPretty(resBody))
+	// TODO: inline deserialization and add informative logging
+	mustDeserializeJson(resBody, out)
+	return nil
+}
+
+func (c *Client) doPost(path string, out interface{}, body io.Reader) error {
+	url := c.resolveUrl(path)
+	c.logger.Debugf("electricgopher.api.Client.doPost(): POST %s", url)
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return err
+	}
+
+	accessToken, err := c.acquireAccessToken()
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	// check for 200
+	if res.StatusCode != 200 {
+		return fmt.Errorf("Unable to get resource; HTTP response status %s", res.Status)
+	}
+
 	// TODO: make this more resilient
 	ct := res.Header["Content-Type"][0]
 	if !strings.Contains(ct, "application/json") {

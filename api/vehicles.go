@@ -12,7 +12,7 @@ type Vehicle struct {
 	Color           string   `json:"color"`
 	Tokens          []string `json:"tokens"`
 	State           string   `json:"state"`
-	InService       string   `json:"in_service"`
+	InService       bool     `json:"in_service"`
 	CalendarEnabled bool     `json:"calendar_enabled"`
 }
 

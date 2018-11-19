@@ -78,6 +78,8 @@ func (c *Client) GetAccessToken(in *AccessTokenInput) (*AccessTokenOutput, error
 		c.logger.Debugf("electricgopher.api.Client.GetAccessToken(): error posting request - %v", err)
 		return nil, err
 	}
+	defer res.Body.Close()
+
 	c.logger.Debugf("electricgopher.api.Client.GetAccessToken(): http response status - %s", res.Status)
 	// check for 200
 	if res.StatusCode != 200 {
