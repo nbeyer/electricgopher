@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type Client struct {
@@ -141,10 +142,24 @@ func (c *Client) Authenticate() error {
 		c.Credentials.Email,
 		c.Credentials.Password,
 	)
-	ato, err := c.GetAccessToken(ati)
-	if err != nil {
-		return err
+
+	// Attempt to acquire token with 5 retries, spaced at 250ms intervals
+	retries := 5
+	retryThrottle := time.Tick(time.Millisecond * 250)
+
+	for retries > 0 {
+		ato, err := c.GetAccessToken(ati)
+		if err == nil {
+			c.currentTokens = ato
+			break
+		} else {
+			if retries > 0 {
+				retries--
+				<-retryThrottle
+			} else {
+				return err
+			}
+		}
 	}
-	c.currentTokens = ato
 	return nil
 }
