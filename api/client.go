@@ -3,9 +3,11 @@ package api
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type Client struct {
@@ -74,10 +76,50 @@ func (c *Client) doGet(path string, out interface{}) error {
 		c.logger.Debugf("electricgopher.api.Client.doGet(): error making request - %s", err.Error())
 		return err
 	}
+	defer res.Body.Close()
+
 	// check for 200
 	if res.StatusCode != 200 {
 		return fmt.Errorf("Unable to get resource; HTTP response status %s", res.Status)
 	}
+	// TODO: make this more resilient
+	ct := res.Header["Content-Type"][0]
+	if !strings.Contains(ct, "application/json") {
+		return fmt.Errorf("Unable to parse response; unexpected content type - %s", ct)
+	}
+	resBody, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("Unable to read response body - %s", err.Error())
+	}
+	c.logger.Debugf("electricgopher.api.Client.doGet(): HTTP Response Body - %s", makeJsonPretty(resBody))
+	// TODO: inline deserialization and add informative logging
+	mustDeserializeJson(resBody, out)
+	return nil
+}
+
+func (c *Client) doPost(path string, out interface{}, body io.Reader) error {
+	url := c.resolveUrl(path)
+	c.logger.Debugf("electricgopher.api.Client.doPost(): POST %s", url)
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return err
+	}
+
+	accessToken, err := c.acquireAccessToken()
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	// check for 200
+	if res.StatusCode != 200 {
+		return fmt.Errorf("Unable to get resource; HTTP response status %s", res.Status)
+	}
+
 	// TODO: make this more resilient
 	ct := res.Header["Content-Type"][0]
 	if !strings.Contains(ct, "application/json") {
@@ -100,10 +142,24 @@ func (c *Client) Authenticate() error {
 		c.Credentials.Email,
 		c.Credentials.Password,
 	)
-	ato, err := c.GetAccessToken(ati)
-	if err != nil {
-		return err
+
+	// Attempt to acquire token with 5 retries, spaced at 250ms intervals
+	retries := 5
+	retryThrottle := time.Tick(time.Millisecond * 250)
+
+	for retries > 0 {
+		ato, err := c.GetAccessToken(ati)
+		if err == nil {
+			c.currentTokens = ato
+			break
+		} else {
+			if retries > 0 {
+				retries--
+				<-retryThrottle
+			} else {
+				return err
+			}
+		}
 	}
-	c.currentTokens = ato
 	return nil
 }
